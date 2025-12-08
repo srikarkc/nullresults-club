@@ -13,15 +13,30 @@ type ExperimentInput = {
   author_name?: string;
 };
 
-export async function POST(request: Request) {
+type ExperimentListItem = {
+  id: number;
+  title: string;
+  summary: string;
+  tags: string | null;
+  author_name: string | null;
+  created_at: string;
+};
+
+// --- Helper to get the D1 DB binding ---
+function getDb() {
   const { env } = getRequestContext();
 
   // Cloudflare injects the D1 binding at runtime as env.DB,
   // but the generated CloudflareEnv type doesn’t know about it.
-  // We explicitly tell TypeScript to ignore that.
   // @ts-expect-error - DB is provided by Cloudflare as a D1 binding
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = env.DB as any;
+
+  return db;
+}
+
+export async function POST(request: Request) {
+  const db = getDb();
 
   if (!db) {
     return NextResponse.json(
@@ -78,5 +93,31 @@ export async function POST(request: Request) {
   return NextResponse.json(
     { id: result.lastInsertRowid },
     { status: 201 }
+  );
+}
+
+export async function GET() {
+  const db = getDb();
+
+  if (!db) {
+    return NextResponse.json(
+      { error: "Database not available" },
+      { status: 500 }
+    );
+  }
+
+  const stmt = db.prepare(
+    `SELECT id, title, summary, tags, author_name, created_at
+     FROM experiments
+     ORDER BY datetime(created_at) DESC
+     LIMIT 20`
+  );
+
+  const result = await stmt.all();
+  const experiments = (result.results ?? []) as ExperimentListItem[];
+
+  return NextResponse.json(
+    { experiments },
+    { status: 200 }
   );
 }
