@@ -16,7 +16,13 @@ type ExperimentInput = {
 export async function POST(request: Request) {
   const { env } = getRequestContext();
 
-  if (!env || !env.DB) {
+  // Cloudflare injects the D1 binding at runtime as env.DB,
+  // but the generated CloudflareEnv type doesn’t know about it.
+  // We explicitly tell TypeScript to ignore that.
+  // @ts-expect-error - DB is provided by Cloudflare as a D1 binding
+  const db = env.DB as any;
+
+  if (!db) {
     return NextResponse.json(
       { error: "Database not available" },
       { status: 500 }
@@ -50,19 +56,21 @@ export async function POST(request: Request) {
     );
   }
 
-  const stmt = env.DB.prepare(
-    `INSERT INTO experiments
-     (title, summary, what_tried, what_went_wrong, what_learned, tags, author_name)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).bind(
-    title,
-    summary,
-    what_tried,
-    what_went_wrong,
-    what_learned,
-    tags ?? null,
-    author_name ?? null
-  );
+  const stmt = db
+    .prepare(
+      `INSERT INTO experiments
+       (title, summary, what_tried, what_went_wrong, what_learned, tags, author_name)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    )
+    .bind(
+      title,
+      summary,
+      what_tried,
+      what_went_wrong,
+      what_learned,
+      tags ?? null,
+      author_name ?? null
+    );
 
   const result = await stmt.run();
 
