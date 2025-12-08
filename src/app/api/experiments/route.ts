@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { getRequestContext } from "@cloudflare/next-on-pages";
 
 export const runtime = "edge";
 
@@ -13,8 +12,8 @@ type ExperimentInput = {
   author_name?: string;
 };
 
-export async function POST(request: Request) {
-  const { env } = getRequestContext();
+export async function POST(request: Request, context: any) {
+  const env = context?.env;
 
   if (!env || !env.DB) {
     return NextResponse.json(
