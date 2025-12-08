@@ -98,7 +98,9 @@ export default function ExperimentsPage() {
               className="border border-gray-800 rounded-lg p-4 bg-black/40"
             >
               <div className="flex items-baseline justify-between gap-4 mb-1">
-                <h2 className="text-lg font-semibold">{exp.title}</h2>
+                <h2 className="text-lg font-semibold">
+                  <a href={`/experiments/${exp.id}`} className="hover:underline underline-offset-4">{exp.title}</a>
+                </h2>
                 <span className="text-[0.7rem] text-gray-500 whitespace-nowrap">
                   {exp.created_at}
                 </span>
