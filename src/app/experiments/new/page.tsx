@@ -39,11 +39,15 @@ export default function NewExperimentPage() {
 
       setStatus("success");
       e.currentTarget.reset();
-    } catch (err: any) {
-      console.error(err);
-      setStatus("error");
-      setErrorMessage(err.message || "Something went wrong");
-    }
+    }  catch (err: unknown) {
+        console.error(err);
+        setStatus("error");
+        if (err instanceof Error) {
+            setErrorMessage(err.message || "Something went wrong");
+        } else {
+            setErrorMessage("Something went wrong");
+        }
+    } 
   }
 
   return (

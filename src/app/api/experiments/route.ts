@@ -20,6 +20,7 @@ export async function POST(request: Request) {
   // but the generated CloudflareEnv type doesn’t know about it.
   // We explicitly tell TypeScript to ignore that.
   // @ts-expect-error - DB is provided by Cloudflare as a D1 binding
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = env.DB as any;
 
   if (!db) {
