@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getRequestContext } from "@cloudflare/next-on-pages";
 
 export const runtime = "edge";
 
@@ -12,13 +13,9 @@ type ExperimentInput = {
   author_name?: string;
 };
 
-export async function POST(
-  request: Request,
-  context: { env: any }
-) {
-  const { env } = context;
+export async function POST(request: Request) {
+  const { env } = getRequestContext();
 
-  // Simple safety check: if DB binding is missing
   if (!env || !env.DB) {
     return NextResponse.json(
       { error: "Database not available" },
