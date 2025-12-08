@@ -11,7 +11,8 @@ export default function NewExperimentPage() {
     setStatus("submitting");
     setErrorMessage(null);
 
-    const formData = new FormData(e.currentTarget);
+    const form = e.currentTarget;              // ⬅️ capture reference right away
+    const formData = new FormData(form);
 
     const payload = {
       title: String(formData.get("title") || "").trim(),
@@ -38,16 +39,17 @@ export default function NewExperimentPage() {
       }
 
       setStatus("success");
-      e.currentTarget.reset();
-    }  catch (err: unknown) {
-        console.error(err);
-        setStatus("error");
-        if (err instanceof Error) {
-            setErrorMessage(err.message || "Something went wrong");
-        } else {
-            setErrorMessage("Something went wrong");
-        }
-    } 
+      form.reset();                            // ⬅️ use saved reference, not e.currentTarget
+    } catch (err: unknown) {
+      console.error(err);
+      setStatus("error");
+
+      if (err instanceof Error) {
+        setErrorMessage(err.message || "Something went wrong");
+      } else {
+        setErrorMessage("Something went wrong");
+      }
+    }
   }
 
   return (
