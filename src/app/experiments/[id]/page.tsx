@@ -15,24 +15,52 @@ type Experiment = {
 };
 
 type PageProps = {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 };
 
 export default function ExperimentDetailPage({ params }: PageProps) {
+  const [id, setId] = useState<string | null>(null);
+
   const [experiment, setExperiment] = useState<Experiment | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Unwrap params (Cloudflare/next-on-pages + Next 15 expects params to be a Promise)
   useEffect(() => {
+    let mounted = true;
+    params
+      .then((p) => {
+        if (mounted) setId(p.id);
+      })
+      .catch((e) => {
+        console.error(e);
+        if (mounted) {
+          setError("Invalid route params.");
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [params]);
+
+  // Fetch experiment only after we have the id
+  useEffect(() => {
+    if (!id) return;
+
     async function load() {
+      setLoading(true);
+      setError(null);
+      setExperiment(null);
+
       try {
-        const res = await fetch(`/api/experiments/${params.id}`);
+        const res = await fetch(`/api/experiments/${id}`);
 
         if (res.status === 404) {
           setError("Experiment not found.");
-          setLoading(false);
           return;
         }
 
@@ -57,7 +85,7 @@ export default function ExperimentDetailPage({ params }: PageProps) {
     }
 
     void load();
-  }, [params.id]);
+  }, [id]);
 
   return (
     <main className="max-w-3xl mx-auto px-4 py-10">
@@ -74,21 +102,13 @@ export default function ExperimentDetailPage({ params }: PageProps) {
         </p>
       )}
 
-      {error && !loading && (
-        <p className="mt-6 text-sm text-red-400">
-          {error}
-        </p>
-      )}
+      {error && !loading && <p className="mt-6 text-sm text-red-400">{error}</p>}
 
       {!loading && !error && experiment && (
         <article className="mt-6">
-          <h1 className="text-2xl font-semibold mb-2">
-            {experiment.title}
-          </h1>
+          <h1 className="text-2xl font-semibold mb-2">{experiment.title}</h1>
 
-          <p className="text-xs text-gray-500 mb-1">
-            {experiment.created_at}
-          </p>
+          <p className="text-xs text-gray-500 mb-1">{experiment.created_at}</p>
 
           <p className="text-xs text-gray-400 mb-4">
             by{" "}
@@ -97,9 +117,7 @@ export default function ExperimentDetailPage({ params }: PageProps) {
             </span>
           </p>
 
-          <p className="text-sm text-gray-200 mb-6">
-            {experiment.summary}
-          </p>
+          <p className="text-sm text-gray-200 mb-6">{experiment.summary}</p>
 
           <section className="space-y-4 text-sm text-gray-200">
             <div>
@@ -132,9 +150,7 @@ export default function ExperimentDetailPage({ params }: PageProps) {
 
           {experiment.tags && experiment.tags.trim().length > 0 && (
             <div className="mt-6">
-              <h2 className="text-sm font-semibold mb-2 text-gray-100">
-                Tags
-              </h2>
+              <h2 className="text-sm font-semibold mb-2 text-gray-100">Tags</h2>
               <div className="flex flex-wrap gap-2">
                 {experiment.tags
                   .split(",")
