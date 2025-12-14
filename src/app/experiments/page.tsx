@@ -1,28 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 
-type Experiment = {
+type ExperimentListItem = {
   id: number;
   title: string;
   summary: string;
-  what_tried: string;
-  what_went_wrong: string;
-  what_learned: string;
   tags: string | null;
   author_name: string | null;
   created_at: string;
 };
 
-type PageProps = {
-  params: {
-    id: string;
-  };
-};
-
 function formatDate(input: string): string {
-  // D1 default created_at often looks like "2025-12-08 06:18:48"
-  // Turn it into something nicer; if parsing fails, fall back to raw.
   const normalized = input.includes("T") ? input : input.replace(" ", "T") + "Z";
   const d = new Date(normalized);
   if (Number.isNaN(d.getTime())) return input;
@@ -30,32 +20,21 @@ function formatDate(input: string): string {
     year: "numeric",
     month: "short",
     day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit"
   });
 }
 
-export default function ExperimentDetailPage({ params }: PageProps) {
-  const [experiment, setExperiment] = useState<Experiment | null>(null);
+export default function ExperimentsPage() {
+  const [experiments, setExperiments] = useState<ExperimentListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-
-  const id = params.id;
 
   useEffect(() => {
     async function load() {
       setLoading(true);
       setError(null);
-      setExperiment(null);
 
       try {
-        const res = await fetch(`/api/experiments/${id}`);
-
-        if (res.status === 404) {
-          setError("Experiment not found.");
-          return;
-        }
+        const res = await fetch("/api/experiments", { cache: "no-store" });
 
         if (!res.ok) {
           throw new Error(`Request failed with status ${res.status}`);
@@ -63,156 +42,115 @@ export default function ExperimentDetailPage({ params }: PageProps) {
 
         const data: unknown = await res.json();
 
-        if (!data || typeof data !== "object" || !("experiment" in data)) {
+        if (!data || typeof data !== "object" || !("experiments" in data)) {
           throw new Error("Malformed response from server");
         }
 
-        const { experiment } = data as { experiment: Experiment };
-        setExperiment(experiment);
+        const { experiments } = data as { experiments: ExperimentListItem[] };
+        setExperiments(Array.isArray(experiments) ? experiments : []);
       } catch (err: unknown) {
         console.error(err);
-        setError("Could not load experiment. Please try again later.");
+        setError("Could not load experiments. Please try again later.");
       } finally {
         setLoading(false);
       }
     }
 
     void load();
-  }, [id]);
-
-  const tags = useMemo(() => {
-    if (!experiment?.tags) return [];
-    return experiment.tags
-      .split(",")
-      .map((t) => t.trim())
-      .filter((t) => t.length > 0);
-  }, [experiment]);
-
-  const author = useMemo(() => {
-    const a = experiment?.author_name?.trim();
-    return a && a.length > 0 ? a : "Anonymous";
-  }, [experiment]);
-
-  async function copyLink() {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // Ignore (some browsers block clipboard without https/user gesture).
-      setCopied(false);
-    }
-  }
+  }, []);
 
   return (
     <main className="max-w-3xl mx-auto px-4 py-10">
       <div className="flex items-center justify-between gap-4">
-        <a
-          href="/experiments"
-          className="text-xs text-gray-400 hover:text-gray-200 underline underline-offset-4"
-        >
-          ← Back
-        </a>
+        <h1 className="text-2xl font-semibold">Experiments</h1>
 
-        <button
-          type="button"
-          onClick={copyLink}
-          className="text-xs border border-gray-800 rounded-md px-3 py-1 text-gray-200 hover:border-gray-700"
+        <Link
+          href="/experiments/new"
+          className="text-xs px-3 py-2 rounded-md border border-gray-700 text-gray-200 hover:bg-gray-900"
         >
-          {copied ? "Copied!" : "Copy link"}
-        </button>
+          + Submit experiment
+        </Link>
       </div>
 
+      <p className="mt-2 text-sm text-gray-400">
+        A lovingly curated museum of “well… that didn’t work.”
+      </p>
+
       {loading && (
-        <div className="mt-8">
-          <p className="text-sm text-gray-400">Loading detailed failure report…</p>
-        </div>
+        <p className="mt-6 text-sm text-gray-400">Loading experiments…</p>
       )}
 
       {error && !loading && (
-        <div className="mt-8 border border-red-900/40 bg-red-950/20 rounded-lg p-4">
-          <p className="text-sm text-red-300">{error}</p>
-          <p className="text-xs text-gray-400 mt-2">
-            Try going back to the{" "}
-            <a
-              href="/experiments"
-              className="underline underline-offset-4 text-gray-200"
-            >
-              experiments list
-            </a>
-            .
+        <p className="mt-6 text-sm text-red-400">{error}</p>
+      )}
+
+      {!loading && !error && experiments.length === 0 && (
+        <div className="mt-6 rounded-lg border border-gray-800 p-4">
+          <p className="text-sm text-gray-300">
+            No experiments yet. Be the first brave soul.
           </p>
+          <Link
+            href="/experiments/new"
+            className="inline-block mt-3 text-xs text-gray-200 underline underline-offset-4 hover:text-white"
+          >
+            Submit one →
+          </Link>
         </div>
       )}
 
-      {!loading && !error && experiment && (
-        <article className="mt-8">
-          <div className="mb-6">
-            <h1 className="text-2xl font-semibold mb-2">{experiment.title}</h1>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
-              <span>{formatDate(experiment.created_at)}</span>
-              <span>
-                by{" "}
-                <span className="text-gray-200 font-medium">{author}</span>
-              </span>
-              <span className="text-gray-600">id: {experiment.id}</span>
-            </div>
-          </div>
-
-          <div className="border border-gray-800 rounded-lg p-4 bg-black/40 mb-6">
-            <h2 className="text-sm font-semibold text-gray-100 mb-2">
-              Summary
-            </h2>
-            <p className="text-sm text-gray-200 whitespace-pre-wrap">
-              {experiment.summary}
-            </p>
-          </div>
-
-          <div className="grid gap-4">
-            <section className="border border-gray-800 rounded-lg p-4 bg-black/40">
-              <h2 className="text-sm font-semibold text-gray-100 mb-2">
-                What did they try?
-              </h2>
-              <p className="text-sm text-gray-200 whitespace-pre-wrap">
-                {experiment.what_tried}
-              </p>
-            </section>
-
-            <section className="border border-gray-800 rounded-lg p-4 bg-black/40">
-              <h2 className="text-sm font-semibold text-gray-100 mb-2">
-                What went wrong?
-              </h2>
-              <p className="text-sm text-gray-200 whitespace-pre-wrap">
-                {experiment.what_went_wrong}
-              </p>
-            </section>
-
-            <section className="border border-gray-800 rounded-lg p-4 bg-black/40">
-              <h2 className="text-sm font-semibold text-gray-100 mb-2">
-                What did they learn?
-              </h2>
-              <p className="text-sm text-gray-200 whitespace-pre-wrap">
-                {experiment.what_learned}
-              </p>
-            </section>
-          </div>
-
-          {tags.length > 0 && (
-            <div className="mt-6">
-              <h2 className="text-sm font-semibold text-gray-100 mb-2">Tags</h2>
-              <div className="flex flex-wrap gap-2">
-                {tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="text-[0.7rem] px-2 py-1 rounded-full border border-gray-700 text-gray-300"
+      {!loading && !error && experiments.length > 0 && (
+        <ul className="mt-6 space-y-3">
+          {experiments.map((exp) => (
+            <li
+              key={exp.id}
+              className="rounded-lg border border-gray-800 p-4 hover:border-gray-700 transition"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <Link
+                    href={`/experiments/${exp.id}`}
+                    className="text-base font-semibold text-gray-100 hover:underline underline-offset-4"
                   >
-                    {tag}
-                  </span>
-                ))}
+                    {exp.title}
+                  </Link>
+
+                  <div className="mt-1 text-xs text-gray-500">
+                    {formatDate(exp.created_at)} •{" "}
+                    <span className="text-gray-300">
+                      {exp.author_name?.trim() || "Anonymous"}
+                    </span>
+                  </div>
+                </div>
+
+                <Link
+                  href={`/experiments/${exp.id}`}
+                  className="text-xs text-gray-400 hover:text-gray-200 underline underline-offset-4 shrink-0"
+                >
+                  Read →
+                </Link>
               </div>
-            </div>
-          )}
-        </article>
+
+              <p className="mt-3 text-sm text-gray-200">{exp.summary}</p>
+
+              {exp.tags && exp.tags.trim().length > 0 && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {exp.tags
+                    .split(",")
+                    .map((t) => t.trim())
+                    .filter((t) => t.length > 0)
+                    .map((tag) => (
+                      <span
+                        key={tag}
+                        className="text-[0.7rem] px-2 py-1 rounded-full border border-gray-700 text-gray-300"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
     </main>
   );
