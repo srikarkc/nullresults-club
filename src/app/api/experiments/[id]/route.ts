@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { getRequestContext } from "@cloudflare/next-on-pages";
 
 export const runtime = "edge";
@@ -28,48 +28,38 @@ function getDb() {
 }
 
 export async function GET(
-  _request: Request,
-  { params }: { params: { id: string } }
+  _request: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   const db = getDb();
 
   if (!db) {
-    return NextResponse.json(
-      { error: "Database not available" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Database not available" }, { status: 500 });
   }
 
-  const numericId = Number(params.id);
+  const { id } = await context.params;
+
+  const numericId = Number(id);
   if (!Number.isInteger(numericId) || numericId <= 0) {
-    return NextResponse.json(
-      { error: "Invalid experiment id" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Invalid experiment id" }, { status: 400 });
   }
 
-  const stmt = db.prepare(
-    `SELECT id, title, summary, what_tried, what_went_wrong, what_learned,
-            tags, author_name, created_at
-     FROM experiments
-     WHERE id = ?
-     LIMIT 1`
-  ).bind(numericId);
+  const stmt = db
+    .prepare(
+      `SELECT id, title, summary, what_tried, what_went_wrong, what_learned,
+              tags, author_name, created_at
+       FROM experiments
+       WHERE id = ?
+       LIMIT 1`
+    )
+    .bind(numericId);
 
   const result = await stmt.all();
   const rows = (result.results ?? []) as Experiment[];
 
   if (rows.length === 0) {
-    return NextResponse.json(
-      { error: "Experiment not found" },
-      { status: 404 }
-    );
+    return NextResponse.json({ error: "Experiment not found" }, { status: 404 });
   }
 
-  const experiment = rows[0];
-
-  return NextResponse.json(
-    { experiment },
-    { status: 200 }
-  );
+  return NextResponse.json({ experiment: rows[0] }, { status: 200 });
 }
