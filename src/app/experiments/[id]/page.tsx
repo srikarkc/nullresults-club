@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 
 type Experiment = {
   id: number;
@@ -15,6 +16,7 @@ type Experiment = {
 };
 
 type PageProps = {
+  // Cloudflare/next-on-pages + Next 15: params is a Promise in the generated types
   params: Promise<{
     id: string;
   }>;
@@ -27,19 +29,25 @@ export default function ExperimentDetailPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Unwrap params (Cloudflare/next-on-pages + Next 15 expects params to be a Promise)
+  // Unwrap params once
   useEffect(() => {
     let mounted = true;
+
     params
       .then((p) => {
-        if (mounted) setId(p.id);
+        if (!mounted) return;
+        if (!p?.id || typeof p.id !== "string") {
+          setError("Invalid route params.");
+          setLoading(false);
+          return;
+        }
+        setId(p.id);
       })
       .catch((e) => {
         console.error(e);
-        if (mounted) {
-          setError("Invalid route params.");
-          setLoading(false);
-        }
+        if (!mounted) return;
+        setError("Invalid route params.");
+        setLoading(false);
       });
 
     return () => {
@@ -51,6 +59,8 @@ export default function ExperimentDetailPage({ params }: PageProps) {
   useEffect(() => {
     if (!id) return;
 
+    let cancelled = false;
+
     async function load() {
       setLoading(true);
       setError(null);
@@ -60,7 +70,7 @@ export default function ExperimentDetailPage({ params }: PageProps) {
         const res = await fetch(`/api/experiments/${id}`);
 
         if (res.status === 404) {
-          setError("Experiment not found.");
+          if (!cancelled) setError("Experiment not found.");
           return;
         }
 
@@ -75,26 +85,38 @@ export default function ExperimentDetailPage({ params }: PageProps) {
         }
 
         const { experiment } = data as { experiment: Experiment };
-        setExperiment(experiment);
+        if (!cancelled) setExperiment(experiment);
       } catch (err: unknown) {
         console.error(err);
-        setError("Could not load experiment. Please try again later.");
+        if (!cancelled) setError("Could not load experiment. Please try again later.");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
     void load();
+
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
+
+  const tags = useMemo(() => {
+    if (!experiment?.tags) return [];
+    return experiment.tags
+      .split(",")
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+  }, [experiment?.tags]);
 
   return (
     <main className="max-w-3xl mx-auto px-4 py-10">
-      <a
+      <Link
         href="/experiments"
         className="text-xs text-gray-400 hover:text-gray-200 underline underline-offset-4"
       >
         ← Back to all experiments
-      </a>
+      </Link>
 
       {loading && (
         <p className="mt-6 text-sm text-gray-400">
@@ -148,22 +170,18 @@ export default function ExperimentDetailPage({ params }: PageProps) {
             </div>
           </section>
 
-          {experiment.tags && experiment.tags.trim().length > 0 && (
+          {tags.length > 0 && (
             <div className="mt-6">
               <h2 className="text-sm font-semibold mb-2 text-gray-100">Tags</h2>
               <div className="flex flex-wrap gap-2">
-                {experiment.tags
-                  .split(",")
-                  .map((t) => t.trim())
-                  .filter((t) => t.length > 0)
-                  .map((tag) => (
-                    <span
-                      key={tag}
-                      className="text-[0.7rem] px-2 py-1 rounded-full border border-gray-700 text-gray-300"
-                    >
-                      {tag}
-                    </span>
-                  ))}
+                {tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="text-[0.7rem] px-2 py-1 rounded-full border border-gray-700 text-gray-300"
+                  >
+                    {tag}
+                  </span>
+                ))}
               </div>
             </div>
           )}
